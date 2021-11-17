@@ -1,0 +1,87 @@
+@isTest
+private class ProjectRESTServiceTest {
+
+    private static final String PROJECT_REF = '12345';
+    private static final String NONEXISTING_PROJECT_REF = '00000';
+    private static final String CLOSED_WON = 'Closed/Won';
+
+    private static final String PROJECT_NAME = 'Project Name';
+    private static final String PROJECT_STATUS = 'Running';
+
+    @testSetup static void setup() {
+        Opportunity opp = new Opportunity(
+                Name = 'OpportunityName',
+                StageName = 'Prospecting',
+                CloseDate = Date.today().addYears(1)
+        );
+        insert opp;
+
+        Project__c project = new Project__c();
+        project.ProjectRef__c = PROJECT_REF;
+        project.Opportunity__c = opp.Id;
+        insert project;
+    }
+
+    @isTest static void testPostCreate() {
+        Id oppId = [SELECT Id FROM Opportunity].Id;
+
+        Test.startTest();
+
+        String result = ProjectRESTService.postProjectData(
+                NONEXISTING_PROJECT_REF, PROJECT_NAME, oppId, Date.today(), Date.today().addYears(1), 100, PROJECT_STATUS);
+
+        Test.stopTest();
+
+        Opportunity opp = [SELECT Id, DeliveryInstallationStatus__c FROM Opportunity];
+        List<Project__c> projects = [SELECT Name, Status__c, ProjectRef__c FROM Project__c];
+
+        System.assertEquals('OK', result);
+        System.assertEquals(2, projects.size());
+
+        Project__c project = projects[0].ProjectRef__c == NONEXISTING_PROJECT_REF ? projects[0] : projects[1];
+
+        System.assertEquals('In progress', opp.DeliveryInstallationStatus__c);
+        System.assertEquals(PROJECT_NAME, project.Name);
+        System.assertEquals(PROJECT_STATUS, project.Status__c);
+    }
+
+    @isTest static void testPostUpdate() {
+        Id oppId = [SELECT Id FROM Opportunity].Id;
+
+        Test.startTest();
+
+        String result = ProjectRESTService.postProjectData(
+                PROJECT_REF, PROJECT_NAME, oppId, Date.today(), Date.today().addYears(1), 100, PROJECT_STATUS);
+
+        Test.stopTest();
+
+        Opportunity opp = [SELECT Id, DeliveryInstallationStatus__c FROM Opportunity];
+        List<Project__c> projects = [SELECT Name, Status__c FROM Project__c];
+
+        System.assertEquals('OK', result);
+        System.assertEquals(1, projects.size());
+
+        Project__c project = projects[0];
+
+        System.assertEquals('In progress', opp.DeliveryInstallationStatus__c);
+        System.assertEquals(PROJECT_NAME, project.Name);
+        System.assertEquals(PROJECT_STATUS, project.Status__c);
+    }
+
+    @isTest static void testPostInvalidOpportunityId() {
+        String invalidOppId = '0061r00000uf2gc';
+
+        Test.startTest();
+
+        String result = ProjectRESTService.postProjectData(
+                PROJECT_REF, PROJECT_NAME, invalidOppId, Date.today(), Date.today().addYears(1), 100, PROJECT_STATUS);
+
+        Test.stopTest();
+
+        System.assertNotEquals('OK', result);
+
+        Opportunity opp = [SELECT Id, DeliveryInstallationStatus__c FROM Opportunity];
+        System.assertNotEquals('In progress', opp.DeliveryInstallationStatus__c);
+    }
+
+}
